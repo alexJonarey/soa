@@ -1,0 +1,482 @@
+/controller
+api.php
+<?php
+// referencia a Cruds
+include_once '../MODELS/Cruds.php';
+
+$opc = $_SERVER['REQUEST_METHOD'];
+switch($opc){
+    case 'GET':
+        if (isset($_GET['cedula']) && $_GET['cedula'] != '') {
+            Cruds::buscarEst();
+        } else {
+            Cruds::listarEst();
+        }
+        break;
+    case 'POST':
+        Cruds::insertEst();
+        break;
+    case 'PUT':
+        Cruds::updateEst();
+        break;
+    case 'DELETE':
+        Cruds::deleteEst();
+        break;
+}
+?>
+/models
+Conexion.php
+<?php
+class Conexion{
+    public function conectar(){
+        $server="localhost";
+        $user="root";
+        $pass="";
+        $database="soa";
+        try {
+        $conn= new PDO("mysql:host=$server;dbname=$database",$user,$pass);
+        } catch (Exception $e) {
+        die("fallo conexion ".$e->getMessage());
+       }
+        return $conn; 
+    }
+}
+Cruds.php
+<?php
+include_once 'Conexion.php';
+class Cruds{
+    public static function listarEst(){
+        $objCon = new Conexion;
+        $conexion = $objCon->conectar();
+        if($conexion){
+            $sql = "SELECT * FROM estudiantes";
+            $stmt = $conexion->prepare($sql);
+            $stmt->execute();
+            $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode($data);
+        }else{
+            echo json_encode ([]);
+        }
+    }
+
+    public static function insertEst(){
+        $objCon = new Conexion;
+        $conexion = $objCon->conectar();
+        $cedula = $_POST['cedula'];
+        $nombre = $_POST['nombre'];
+        $apellido = $_POST['apellido'];
+        $telefono = $_POST['telefono'];
+        $direccion = $_POST['direccion'];
+
+        if($conexion){
+            $sql = "INSERT INTO estudiantes VALUES ('$cedula', '$nombre', '$apellido', '$telefono', '$direccion')";
+            $result = $conexion->prepare($sql);
+            $result->execute();
+            echo json_encode(['message' => 'Estudiante insertado correctamente']);
+        }else{
+            echo json_encode(['message' => 'Error al conectar a la base de datos']);
+        }
+    }
+
+    public static function updateEst(){
+        $objCon = new Conexion;
+        $conexion = $objCon->conectar();
+        $cedula = $_GET['cedula'];
+        $nombre = $_GET['nombre'];
+        $apellido = $_GET['apellido'];
+        $telefono = $_GET['telefono'];
+        $direccion = $_GET['direccion'];
+        if($conexion){
+            $sql = "UPDATE estudiantes SET nombre='$nombre', apellido='$apellido', telefono='$telefono', direccion='$direccion' WHERE cedula='$cedula'";
+            $result = $conexion->prepare($sql);
+            $result->execute();
+            echo json_encode(['message' => 'Estudiante actualizado correctamente']);
+        }else{
+            echo json_encode(['message' => 'Error al conectar a la base de datos']);
+        }
+    }
+
+    public static function deleteEst(){
+        $objCon = new Conexion;
+        $conexion = $objCon->conectar();
+        $cedula = $_GET['cedula'];
+        if($conexion){
+            $sql = "DELETE FROM estudiantes WHERE cedula='$cedula'";
+            $result = $conexion->prepare($sql);
+            $result->execute();
+            echo json_encode(['message' => 'Estudiante eliminado correctamente']);
+        }else{
+            echo json_encode(['message' => 'Error al conectar a la base de datos']);
+        }
+    }
+
+    public static function buscarEst(){
+        $objCon = new Conexion;
+        $conexion = $objCon->conectar();
+        $cedula = $_GET['cedula'];
+        if($conexion){
+            // Usar placeholders (?) para evitar inyecciones SQL
+            $sql = "SELECT * FROM estudiantes WHERE cedula = ?";
+            $result = $conexion->prepare($sql);
+            $result->execute([$cedula]);
+            $data = $result->fetchAll(PDO::FETCH_ASSOC); // Obtener los datos reales
+            echo json_encode($data); // Devolver el array con el estudiante
+        }else{
+            echo json_encode(['message' => 'Error al conectar']);
+        }
+    }
+}
+?>
+/views
+index.html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Estudio CRUD - Solo $.ajax</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+ 
+</head>
+<body>
+
+    <div class="box">
+        <h3>🔍 Buscar Estudiante</h3>
+        <input type="text" id="txtBuscar" placeholder="Cédula a buscar...">
+        <button  onclick="buscar()">Ejecutar Buscar</button>
+        <button  onclick="listar()" >Mostrar Todos</button>
+    </div>
+
+    <div class="box">
+        <h3 id="formTitle">Estudiantes</h3>
+        <input type="hidden" id="modo" value="nuevo">
+        <input type="text" id="cedula" placeholder="Cédula">
+        <input type="text" id="nombre" placeholder="Nombre">
+        <input type="text" id="apellido" placeholder="Apellido">
+        <input type="text" id="telefono" placeholder="Teléfono">
+        <button id="btnAccion" class="btn btn-save" onclick="guardar()">Guardar Estudiante</button>
+        <button onclick="limpiar()" style="color:#333; background:#eee">Cancelar</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Cédula</th>
+                <th>Nombre</th>
+                <th>Apellido</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody id="cuerpoTabla"></tbody>
+    </table>
+
+    <script>
+        const API_URL = '../controller/Api.php';
+
+        $(document).ready(function() {
+            listar(); // Cargar al inicio
+        });
+
+        // --- LISTAR (GET) ---
+        function listar() {
+            $.ajax({
+                url: API_URL,
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    dibujarTabla(data);
+                },
+                error: function() { alert("Error al cargar lista"); }
+            });
+        }
+
+        // --- BUSCAR (GET con parámetros) ---
+        function buscar() {
+            const cedula = $('#txtBuscar').val().trim();
+            if (cedula === "") return listar();
+
+            $.ajax({
+                url: API_URL,
+                type: 'GET',
+                data: { cedula: cedula }, // jQuery lo pega a la URL: ?cedula=XXX
+                dataType: 'json',
+                success: function(data) {
+                    // Si el API devuelve un solo objeto, lo hacemos array
+                    const resultado = Array.isArray(data) ? data : [data];
+                    if(resultado[0] === null || resultado.length === 0) {
+                        alert("No encontrado");
+                        $('#cuerpoTabla').empty();
+                    } else {
+                        dibujarTabla(resultado);
+                    }
+                },
+                error: function() { alert("Error en la búsqueda"); }
+            });
+        }
+
+        // --- GUARDAR (POST para nuevo, PUT para editar) ---
+        function guardar() {
+            const modo = $('#modo').val();
+            const estudiante = {
+                cedula: $('#cedula').val(),
+                nombre: $('#nombre').val(),
+                apellido: $('#apellido').val(),
+                telefono: $('#telefono').val()
+            };
+
+            if (modo === 'nuevo') {
+                $.ajax({
+                    url: API_URL,
+                    type: 'POST',
+                    data: estudiante,
+                    dataType: 'json',
+                    success: function(res) {
+                        alert(res.message);
+                        listar();
+                       
+                    }
+                });
+            } else {
+                // ACTUALIZAR (Vía URL params como definimos en tu Cruds.php)
+                $.ajax({
+                    url: API_URL + '?' + $.param(estudiante),
+                    type: 'PUT',
+                    dataType: 'json',
+                    success: function(res) {
+                        alert(res.message);
+                       
+                        limpiar();
+                         
+                    }
+                });
+            }
+            listar();
+             limpiar();
+        }
+
+        // --- ELIMINAR (DELETE) ---
+        function eliminar(ced) {
+            if(!confirm("¿Borrar cédula " + ced + "?")) return;
+
+            $.ajax({
+                url: API_URL + '?cedula=' + ced,
+                type: 'DELETE',
+                dataType: 'json',
+                success: function(res) {
+                    alert(res.message);
+                    listar();
+                }
+            });
+        }
+
+        // --- FUNCIONES DE APOYO ---
+        function dibujarTabla(datos) {
+            let html = '';
+            datos.forEach(est => {
+                if(!est) return;
+                html += `<tr>
+                    <td>${est.cedula}</td>
+                    <td>${est.nombre}</td>
+                    <td>${est.apellido}</td>
+                    <td>
+                        <button class="btn btn-edit" onclick='prepararEdicion(${JSON.stringify(est)})'>Editar</button>
+                        <button class="btn btn-delete" onclick="eliminar('${est.cedula}')">Borrar</button>
+                    </td>
+                </tr>`;
+            });
+            $('#cuerpoTabla').html(html);
+        }
+
+        function prepararEdicion(est) {
+            $('#modo').val('editar');
+            $('#formTitle').text('📝 Editando Estudiante');
+            $('#cedula').val(est.cedula).prop('readonly', true);
+            $('#nombre').val(est.nombre);
+            $('#apellido').val(est.apellido);
+            $('#telefono').val(est.telefono);
+            $('#btnAccion').text('Actualizar Cambios').css('background', '#007bff');
+        }
+
+        function limpiar() {
+            $('#modo').val('nuevo');
+            $('#formTitle').text('📝 Registro de Estudiante');
+            $('#cedula').val('').prop('readonly', false);
+            $('#nombre').val(''); $('#apellido').val(''); $('#telefono').val('');
+            $('#btnAccion').text('Guardar Estudiante').css('background', '#28a745');
+        }
+    </script>
+
+    
+</body>
+</html>
+
+index2.hmlt
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Estudio CRUD - Solo $.ajax</title>
+    
+ 
+</head>
+<body>
+
+    <div class="box">
+        <h3> Buscar Estudiante</h3>
+        <input type="text" id="txtBuscar" placeholder="Cédula a buscar..." >
+        <button  onclick="buscar()"> Buscar</button>
+       
+    </div>
+
+    <div class="box">
+        <h3 id="formTitle">Estudiantes</h3>
+        <input type="hidden" id="modo" value="nuevo">
+        <input type="text" id="cedula" placeholder="Cédula">
+        <input type="text" id="nombre" placeholder="Nombre">
+        <input type="text" id="apellido" placeholder="Apellido">
+        <input type="text" id="telefono" placeholder="Teléfono">
+        <button id="btnAccion" class="btn btn-save" onclick="guardar()">Guardar Estudiante</button>
+        <button onclick="limpiar()">Cancelar</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Cédula</th>
+                <th>Nombre</th>
+                <th>Apellido</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody id="cuerpoTabla"></tbody>
+    </table>
+
+   <script>
+const API_URL = '../controller/Api.php';
+
+// Cargar al iniciar
+document.addEventListener("DOMContentLoaded", listar);
+
+// --- LISTAR (GET) ---
+function listar() {
+    fetch(API_URL)
+    .then(res => res.json())
+    .then(data => dibujarTabla(data))
+    .catch(() => alert("Error al cargar lista"));
+}
+
+// --- BUSCAR ---
+function buscar() {
+    const cedula = document.getElementById('txtBuscar').value.trim();
+    if (cedula === "") return listar();
+
+    fetch(API_URL + '?cedula=' + cedula)
+    .then(res => res.json())
+    .then(data => {
+        const resultado = Array.isArray(data) ? data : [data];
+        if (!resultado[0]) {
+            alert("No encontrado");
+            document.getElementById('cuerpoTabla').innerHTML = '';
+        } else {
+            dibujarTabla(resultado);
+        }
+    })
+    .catch(() => alert("Error en la búsqueda"));
+}
+
+// --- GUARDAR ---
+function guardar() {
+    const modo = document.getElementById('modo').value;
+
+    const estudiante = {
+        cedula: document.getElementById('cedula').value,
+        nombre: document.getElementById('nombre').value,
+        apellido: document.getElementById('apellido').value,
+        telefono: document.getElementById('telefono').value
+    };
+
+    if (modo === 'nuevo') {
+        fetch(API_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: new URLSearchParams(estudiante)
+        })
+        .then(res => res.json())
+        .then(res => {
+            alert(res.message);
+          
+        });
+    } else {
+        fetch(API_URL + '?' + new URLSearchParams(estudiante), {
+            method: 'PUT'
+        })
+        .then(res => res.json())
+        .then(res => {
+            alert(res.message);
+            listar();
+            limpiar();
+        });
+    }
+      listar();
+            limpiar();
+}
+
+// --- ELIMINAR ---
+function eliminar(ced) {
+    if (!confirm("¿Borrar cédula " + ced + "?")) return;
+
+    fetch(API_URL + '?cedula=' + ced, {
+        method: 'DELETE'
+    })
+    .then(res => res.json())
+    .then(res => {
+        alert(res.message);
+        listar();
+    });
+}
+
+// --- DIBUJAR TABLA ---
+function dibujarTabla(datos) {
+    let html = '';
+    datos.forEach(est => {
+        if (!est) return;
+        html += `<tr>
+            <td>${est.cedula}</td>
+            <td>${est.nombre}</td>
+            <td>${est.apellido}</td>
+            <td>
+                <button onclick='prepararEdicion(${JSON.stringify(est)})'>Editar</button>
+                <button onclick="eliminar('${est.cedula}')">Borrar</button>
+            </td>
+        </tr>`;
+    });
+    document.getElementById('cuerpoTabla').innerHTML = html;
+}
+
+// --- EDITAR ---
+function prepararEdicion(est) {
+    document.getElementById('modo').value = 'editar';
+    document.getElementById('formTitle').innerText = '📝 Editando Estudiante';
+    document.getElementById('cedula').value = est.cedula;
+    document.getElementById('cedula').readOnly = true;
+    document.getElementById('nombre').value = est.nombre;
+    document.getElementById('apellido').value = est.apellido;
+    document.getElementById('telefono').value = est.telefono;
+    document.getElementById('btnAccion').innerText = 'Actualizar Cambios';
+}
+
+// --- LIMPIAR ---
+function limpiar() {
+    document.getElementById('modo').value = 'nuevo';
+    document.getElementById('formTitle').innerText = '📝 Registro de Estudiante';
+    document.getElementById('cedula').value = '';
+    document.getElementById('cedula').readOnly = false;
+    document.getElementById('nombre').value = '';
+    document.getElementById('apellido').value = '';
+    document.getElementById('telefono').value = '';
+    document.getElementById('btnAccion').innerText = 'Guardar Estudiante';
+}
+</script>
+
+    
+</body>
+</html>
