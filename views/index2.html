@@ -9,21 +9,21 @@
 <body>
 
     <div class="box">
-        <h3>🔍 Buscar Estudiante</h3>
-        <input type="text" id="txtBuscar" placeholder="Cédula a buscar..." style="display:inline-block">
-        <button class="btn btn-search" onclick="buscar()">Ejecutar Buscar</button>
-        <button class="btn btn-search" onclick="listar()" style="background:#444">Mostrar Todos</button>
+        <h3> Buscar Estudiante</h3>
+        <input type="text" id="txtBuscar" placeholder="Cédula a buscar..." >
+        <button  onclick="buscar()"> Buscar</button>
+       
     </div>
 
     <div class="box">
-        <h3 id="formTitle">📝 Registro de Estudiante</h3>
+        <h3 id="formTitle">Estudiantes</h3>
         <input type="hidden" id="modo" value="nuevo">
         <input type="text" id="cedula" placeholder="Cédula">
         <input type="text" id="nombre" placeholder="Nombre">
         <input type="text" id="apellido" placeholder="Apellido">
         <input type="text" id="telefono" placeholder="Teléfono">
         <button id="btnAccion" class="btn btn-save" onclick="guardar()">Guardar Estudiante</button>
-        <button onclick="limpiar()" style="color:#333; background:#eee">Cancelar</button>
+        <button onclick="limpiar()">Cancelar</button>
     </div>
 
     <table>
